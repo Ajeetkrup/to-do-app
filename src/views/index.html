@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App - DevSecOps Project</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .container { 
+            background: #f5f5f5; 
+            padding: 20px; 
+            border-radius: 8px; 
+        }
+        input, button { 
+            padding: 10px; 
+            margin: 5px; 
+        }
+        .todo-item { 
+            background: white; 
+            padding: 10px; 
+            margin: 5px 0; 
+            border-radius: 4px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .delete-btn { 
+            background: #ff4444; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            cursor: pointer; 
+            border-radius: 4px;
+        }
+        .delete-btn:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DevSecOps Todo App</h1>
+        <div>
+            <input type="text" id="taskInput" placeholder="Enter new task" />
+            <button id="add-task-btn">Add Task</button>
+        </div>
+        <div id="todoList"></div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
