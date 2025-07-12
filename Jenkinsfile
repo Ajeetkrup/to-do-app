@@ -37,11 +37,46 @@ pipeline {
         stage('🧪 Unit Tests') {
             steps {
                 echo '🧪 Running unit tests...'
-                sh 'npm test'
+                sh '''
+                    # Run tests with coverage
+                    npm test -- --coverage --ci --watchAll=false --verbose
+                    
+                    # Verify test results
+                    if [ $? -eq 0 ]; then
+                        echo "✅ All tests passed!"
+                    else
+                        echo "❌ Some tests failed!"
+                        exit 1
+                    fi
+                    
+                    # Check if coverage was generated
+                    if [ -f coverage/lcov.info ]; then
+                        echo "✅ Coverage report generated successfully"
+                    else
+                        echo "⚠️  Coverage report not found"
+                    fi
+                '''
             }
             post {
                 always {
-                    publishTestResults testResultsPattern: 'test-results.xml'
+                    // Publish coverage report (HTML)
+                    script {
+                        if (fileExists('coverage/lcov-report/index.html')) {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'coverage/lcov-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Test Coverage Report'
+                            ])
+                        } else {
+                            echo "⚠️  Coverage HTML report not found"
+                        }
+                    }
+                    
+                    // Archive coverage data
+                    archiveArtifacts artifacts: 'coverage/**/*', allowEmptyArchive: true
                 }
             }
         }
