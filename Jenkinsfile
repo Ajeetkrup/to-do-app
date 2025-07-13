@@ -414,46 +414,53 @@ EOF
             echo '🧹 Cleaning up workspace...'
             cleanWs()
         }
-        success {
-            echo '🎉 Pipeline completed successfully!'
-            // Send notification to team
-            emailext (
-                subject: "✅ DevSecOps Pipeline SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                <h2>Pipeline Execution Successful! 🎉</h2>
-                <p><strong>Job:</strong> ${env.JOB_NAME}</p>
-                <p><strong>Build:</strong> ${env.BUILD_NUMBER}</p>
-                <p><strong>Duration:</strong> ${currentBuild.durationString}</p>
-                <p><strong>Status:</strong> SUCCESS</p>
-                
-                <h3>Security Scans Completed:</h3>
-                <ul>
-                    <li>✅ Code Quality Analysis (SonarQube)</li>
-                    <li>✅ Dependency Vulnerability Check (OWASP)</li>
-                    <li>✅ Container Security Scan (Trivy)</li>
-                </ul>
-                
-                <p><a href="${env.BUILD_URL}">View Build Details</a></p>
-                """,
-                recipientProviders: [developers(), requestor()]
-            )
-        }
-        failure {
-            echo '❌ Pipeline failed!'
-            // Send failure notification
-            emailext (
-                subject: "❌ DevSecOps Pipeline FAILED - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                <h2>Pipeline Execution Failed! ❌</h2>
-                <p><strong>Job:</strong> ${env.JOB_NAME}</p>
-                <p><strong>Build:</strong> ${env.BUILD_NUMBER}</p>
-                <p><strong>Failed Stage:</strong> ${env.STAGE_NAME}</p>
-                
-                <p>Please check the build logs and fix the issues.</p>
-                <p><a href="${env.BUILD_URL}">View Build Details</a></p>
-                """,
-                recipientProviders: [developers(), requestor()]
-            )
-        }
+        
+success {
+    echo '🎉 Pipeline completed successfully!'
+    // Send notification to team
+    emailext (
+        subject: "✅ DevSecOps Pipeline SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        body: """
+        <h2>Pipeline Execution Successful! 🎉</h2>
+        <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+        <p><strong>Build:</strong> ${env.BUILD_NUMBER}</p>
+        <p><strong>Duration:</strong> ${currentBuild.durationString}</p>
+        <p><strong>Status:</strong> SUCCESS</p>
+        
+        <h3>Security Scans Completed:</h3>
+        <ul>
+            <li>✅ Code Quality Analysis (SonarQube)</li>
+            <li>✅ Dependency Vulnerability Check (OWASP)</li>
+            <li>✅ Container Security Scan (Trivy)</li>
+        </ul>
+        
+        <p><a href="${env.BUILD_URL}">View Build Details</a></p>
+        """,
+        mimeType: 'text/html',
+        to: 'ajeetkrup401@gmail.com',
+        // Add more recipients as needed
+        // cc: 'team@company.com',
+        // bcc: 'manager@company.com'
+    )
+}
+
+failure {
+    echo '❌ Pipeline failed!'
+    // Send failure notification
+    emailext (
+        subject: "❌ DevSecOps Pipeline FAILED - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        body: """
+        <h2>Pipeline Execution Failed! ❌</h2>
+        <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+        <p><strong>Build:</strong> ${env.BUILD_NUMBER}</p>
+        <p><strong>Failed Stage:</strong> ${env.STAGE_NAME}</p>
+        
+        <p>Please check the build logs and fix the issues.</p>
+        <p><a href="${env.BUILD_URL}">View Build Details</a></p>
+        """,
+        mimeType: 'text/html',
+        to: 'ajeetkrup401@gmail.com'
+    )
+}
     }
 }
