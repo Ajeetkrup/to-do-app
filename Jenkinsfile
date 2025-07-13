@@ -223,40 +223,91 @@ EOF
         }
         
         stage('🛡️ Container Security Scan - Trivy') {
-            steps {
-                echo '🛡️ Running Trivy security scan...'
-                script {
-                    sh """
-                        # Install Trivy if not present
-                        if ! command -v trivy &> /dev/null; then
-                            wget -qO- https://github.com/aquasecurity/trivy/releases/download/v0.45.0/trivy_0.45.0_Linux-64bit.tar.gz | tar -xz
-                            sudo mv trivy /usr/local/bin/
-                        fi
-                        
-                        # Run Trivy scan
-                        trivy image --format json --output trivy-report.json ${IMAGE_NAME}:${IMAGE_TAG}
-                        trivy image --format table ${IMAGE_NAME}:${IMAGE_TAG}
-                        
-                        # Check for HIGH and CRITICAL vulnerabilities
-                        HIGH_VULNS=\$(trivy image --format json ${IMAGE_NAME}:${IMAGE_TAG} | jq '.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH" or .Severity=="CRITICAL") | .VulnerabilityID' | wc -l)
-                        
-                        if [ \$HIGH_VULNS -gt 0 ]; then
-                            echo "⚠️  Found \$HIGH_VULNS HIGH/CRITICAL vulnerabilities!"
-                            echo "🔍 Review the scan results and fix vulnerabilities before deployment."
-                            # Uncomment next line to fail pipeline on high/critical vulnerabilities
-                            # exit 1
-                        else
-                            echo "✅ No HIGH/CRITICAL vulnerabilities found!"
-                        fi
-                    """
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
-                }
-            }
+    steps {
+        echo '🛡️ Running Trivy security scan...'
+        script {
+            sh '''
+                # Check if Trivy is installed
+                if command -v trivy &> /dev/null; then
+                    echo "✅ Trivy found at: $(which trivy)"
+                    trivy --version
+                else
+                    echo "❌ Trivy not found. Please install Trivy on the Jenkins agent."
+                    exit 1
+                fi
+                
+                # Run Trivy scan
+                echo "🔍 Scanning image ${IMAGE_NAME}:${IMAGE_TAG}..."
+                trivy image --format json --output trivy-report.json ${IMAGE_NAME}:${IMAGE_TAG}
+                trivy image --format table ${IMAGE_NAME}:${IMAGE_TAG}
+                
+                # Check for HIGH and CRITICAL vulnerabilities
+                echo "📊 Analyzing vulnerability results..."
+                HIGH_VULNS=$(trivy image --format json ${IMAGE_NAME}:${IMAGE_TAG} | jq '.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH" or .Severity=="CRITICAL") | .VulnerabilityID' | wc -l)
+                
+                if [ \$HIGH_VULNS -gt 0 ]; then
+                    echo "⚠️ Found $HIGH_VULNS HIGH/CRITICAL vulnerabilities!"
+                    echo "🔍 Review the scan results and fix vulnerabilities before deployment."
+                    # Uncomment next line to fail pipeline on high/critical vulnerabilities
+                    # exit 1
+                else
+                    echo "✅ No HIGH/CRITICAL vulnerabilities found!"
+                fi
+                
+                # Generate HTML report for better visualization
+                SCAN_DATE=$(date)
+                cat > trivy-report.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trivy Security Scan Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background: #2196F3; color: white; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .critical { background: #f8d7da; border-color: #f5c6cb; }
+        .high { background: #fff3cd; border-color: #ffeaa7; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Trivy Security Scan Report</h1>
+        <p>Image: ${IMAGE_NAME}:${IMAGE_TAG}</p>
+        <p>Build #${BUILD_NUMBER} - $SCAN_DATE</p>
+    </div>
+    <div class="section">
+        <h2>Vulnerability Summary</h2>
+        <p>HIGH/CRITICAL Vulnerabilities Found: $HIGH_VULNS</p>
+    </div>
+    <div class="section">
+        <h2>Scan Results</h2>
+        <pre>$(trivy image --format table ${IMAGE_NAME}:${IMAGE_TAG} 2>/dev/null || echo "Scan results not available")</pre>
+    </div>
+</body>
+</html>
+EOF
+            '''
         }
+    }
+    post {
+        always {
+            // Archive reports
+            archiveArtifacts artifacts: 'trivy-report.json,trivy-report.html', allowEmptyArchive: true
+            
+            // Publish HTML report
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: '.',
+                reportFiles: 'trivy-report.html',
+                reportName: 'Trivy Security Scan Report'
+            ])
+        }
+    }
+}
         
         stage('📋 Security Report Generation') {
             steps {
