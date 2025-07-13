@@ -283,7 +283,7 @@ EOF
     <div class="header">
         <h1>🛡️ Trivy Security Scan Report</h1>
         <p>Image: ${IMAGE_NAME}:${IMAGE_TAG}</p>
-        <p>Build #${BUILD_NUMBER} - $(date)</p>
+                        <p>Build #${BUILD_NUMBER} - \$(date)</p>
     </div>
     <div class="section">
         <h2>Vulnerability Summary</h2>
