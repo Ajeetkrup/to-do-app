@@ -12,7 +12,7 @@ pipeline {
         SONAR_LOGIN = credentials('sonar-token')
         
         // OWASP Dependency Check
-        OWASP_DC_VERSION = '8.4.0'
+        // OWASP_DC_VERSION = '8.4.0'
     }
     
     tools {
@@ -109,24 +109,74 @@ pipeline {
         stage('🔒 OWASP Dependency Check') {
             steps {
                 echo '🔒 Running OWASP Dependency Check...'
-                dependencyCheck additionalArguments: '''
-                    --scan .
-                    --format XML
-                    --format HTML
-                    --format JSON
-                    --suppression owasp-suppressions.xml
-                ''', odcInstallation: 'OWASP-DC'
-                
-                publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'dependency-check-report',
-                    reportFiles: 'dependency-check-report.html',
-                    reportName: 'OWASP Dependency Check Report'
-                ])
+                script {
+                    sh '''
+                        # Download and run OWASP Dependency Check
+                        OWASP_DC_VERSION="8.4.0"
+                        OWASP_DC_DIR="dependency-check"
+                        
+                        # Check if already downloaded
+                        if [ ! -d "$OWASP_DC_DIR" ]; then
+                            echo "📥 Downloading OWASP Dependency Check..."
+                            wget -q https://github.com/jeremylong/DependencyCheck/releases/download/v${OWASP_DC_VERSION}/dependency-check-${OWASP_DC_VERSION}-release.zip
+                            unzip -q dependency-check-${OWASP_DC_VERSION}-release.zip
+                            chmod +x dependency-check/bin/dependency-check.sh
+                        fi
+                        
+                        # Run dependency check
+                        echo "🔍 Running dependency scan..."
+                        ./dependency-check/bin/dependency-check.sh \\
+                            --project "todo-app" \\
+                            --scan . \\
+                            --format XML \\
+                            --format HTML \\
+                            --format JSON \\
+                            --out dependency-check-report \\
+                            --suppression owasp-suppressions.xml || true
+                        
+                        # Check results
+                        if [ -f dependency-check-report/dependency-check-report.html ]; then
+                            echo "✅ OWASP Dependency Check completed successfully"
+                            
+                            # Check for vulnerabilities
+                            if [ -f dependency-check-report/dependency-check-report.json ]; then
+                                VULN_COUNT=$(cat dependency-check-report/dependency-check-report.json | jq '.dependencies[]?.vulnerabilities[]?' | wc -l)
+                                echo "Found $VULN_COUNT vulnerabilities"
+                                
+                                if [ $VULN_COUNT -gt 0 ]; then
+                                    echo "⚠️  Vulnerabilities found! Review the report."
+                                    # Uncomment to fail pipeline on vulnerabilities
+                                    # exit 1
+                                fi
+                            fi
+                        else
+                            echo "❌ OWASP Dependency Check failed"
+                            exit 1
+                        fi
+                    '''
+                }
             }
-        }
+            post {
+                always {
+                    // Archive the reports
+                    archiveArtifacts artifacts: 'dependency-check-report/**/*', allowEmptyArchive: true
+                    
+                    // Publish HTML report
+                    script {
+                        if (fileExists('dependency-check-report/dependency-check-report.html')) {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'dependency-check-report',
+                                reportFiles: 'dependency-check-report.html',
+                                reportName: 'OWASP Dependency Check Report'
+                            ])
+                        }
+                    }
+                }
+            }
+            }
         
         stage('🐳 Build Docker Image') {
             steps {
