@@ -106,112 +106,112 @@ pipeline {
             }
         }
         
-       stage('🔒 Dependency Vulnerability Check') {
-        steps {
-            echo '🔒 Running dependency vulnerability check...'
-            script {
-                // Option 1: Try OWASP Dependency Check plugin first
-                try {
-                    echo "🔍 Attempting OWASP Dependency Check plugin..."
-                    dependencyCheck additionalArguments: '''
-                        --scan .
-                        --format XML
-                        --format HTML
-                        --format JSON
-                        --suppression owasp-suppressions.xml
-                    ''', odcInstallation: 'OWASP-DC'
+        stage('🔒 Dependency Vulnerability Check') {
+    steps {
+        echo '🔒 Running dependency vulnerability check...'
+        script {
+            // Option 1: Try OWASP Dependency Check plugin first
+            try {
+                echo "🔍 Attempting OWASP Dependency Check plugin..."
+                dependencyCheck additionalArguments: '''
+                    --scan .
+                    --format XML
+                    --format HTML
+                    --format JSON
+                    --suppression owasp-suppressions.xml
+                ''', odcInstallation: 'OWASP-DC'
+                
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'dependency-check-report',
+                    reportFiles: 'dependency-check-report.html',
+                    reportName: 'OWASP Dependency Check Report'
+                ])
+                
+                echo "✅ OWASP Dependency Check completed successfully"
+                
+            } catch (Exception e) {
+                echo "⚠️ OWASP plugin not available: ${e.getMessage()}"
+                echo "🔄 Falling back to NPM audit..."
+                
+                // Option 2: Fallback to npm audit
+                sh '''
+                    echo "🔍 Running npm audit..."
                     
-                    publishHTML([
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'dependency-check-report',
-                        reportFiles: 'dependency-check-report.html',
-                        reportName: 'OWASP Dependency Check Report'
-                    ])
+                    # Run npm audit
+                    npm audit --json > npm-audit-report.json || true
+                    npm audit > npm-audit-report.txt || true
                     
-                    echo "✅ OWASP Dependency Check completed successfully"
-                    
-                } catch (Exception e) {
-                    echo "⚠️ OWASP plugin not available: ${e.getMessage()}"
-                    echo "🔄 Falling back to NPM audit..."
-                    
-                    // Option 2: Fallback to npm audit
-                    sh '''
-                        echo "🔍 Running npm audit..."
+                    # Parse results
+                    if [ -f npm-audit-report.json ]; then
+                        HIGH_VULNS=$(cat npm-audit-report.json | jq '.vulnerabilities | to_entries[] | select(.value.severity == "high" or .value.severity == "critical") | .key' | wc -l)
+                        TOTAL_VULNS=$(cat npm-audit-report.json | jq '.vulnerabilities | length')
                         
-                        # Run npm audit
-                        npm audit --json > npm-audit-report.json || true
-                        npm audit > npm-audit-report.txt || true
+                        echo "Found $TOTAL_VULNS total vulnerabilities"
+                        echo "Found $HIGH_VULNS high/critical vulnerabilities"
                         
-                        # Parse results
-                        if [ -f npm-audit-report.json ]; then
-                            HIGH_VULNS=$(cat npm-audit-report.json | jq '.vulnerabilities | to_entries[] | select(.value.severity == "high" or .value.severity == "critical") | .key' | wc -l)
-                            TOTAL_VULNS=$(cat npm-audit-report.json | jq '.vulnerabilities | length')
-                            
-                            echo "Found $TOTAL_VULNS total vulnerabilities"
-                            echo "Found $HIGH_VULNS high/critical vulnerabilities"
-                            
-                            if [ $HIGH_VULNS -gt 0 ]; then
-                                echo "⚠️  High/Critical vulnerabilities found!"
-                                echo "🔍 Review npm-audit-report.txt for details"
-                            else
-                                echo "✅ No high/critical vulnerabilities found"
-                            fi
-                            
-                            # Generate HTML report
-                            cat > npm-audit-report.html << 'EOF'
-                                <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <title>NPM Audit Report</title>
-                                <style>
-                                    body { font-family: Arial, sans-serif; margin: 20px; }
-                                    .header { background: #2196F3; color: white; padding: 20px; }
-                                    .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
-                                    .warning { background: #fff3cd; border-color: #ffeaa7; }
-                                    .success { background: #d4edda; border-color: #c3e6cb; }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="header">
-                                    <h1>NPM Audit Report</h1>
-                                    <p>Build #${BUILD_NUMBER} - $(date)</p>
-                                </div>
-                                <div class="section">
-                                    <h2>Vulnerability Summary</h2>
-                                    <pre>$(cat npm-audit-report.txt | head -30)</pre>
-                                </div>
-                            </body>
-                            </html>
-                            EOF
-                                                    
-                            echo "✅ NPM audit completed successfully"
+                        if [ $HIGH_VULNS -gt 0 ]; then
+                            echo "⚠️  High/Critical vulnerabilities found!"
+                            echo "🔍 Review npm-audit-report.txt for details"
                         else
-                            echo "❌ NPM audit failed"
-                            exit 1
+                            echo "✅ No high/critical vulnerabilities found"
                         fi
-                    '''
-                    
-                    // Publish npm audit report
-                    publishHTML([
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: '.',
-                        reportFiles: 'npm-audit-report.html',
-                        reportName: 'NPM Audit Report'
-                    ])
-                }
-            }
-        }
-        post {
-            always {
-                // Archive all reports
-                archiveArtifacts artifacts: 'dependency-check-report/**/*,npm-audit-report.*', allowEmptyArchive: true
+                        
+                        # Generate HTML report
+                        cat > npm-audit-report.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NPM Audit Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background: #2196F3; color: white; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>NPM Audit Report</h1>
+        <p>Build #${BUILD_NUMBER} - $(date)</p>
+    </div>
+    <div class="section">
+        <h2>Vulnerability Summary</h2>
+        <pre>$(cat npm-audit-report.txt | head -30)</pre>
+    </div>
+</body>
+</html>
+EOF
+                        
+                        echo "✅ NPM audit completed successfully"
+                    else
+                        echo "❌ NPM audit failed"
+                        exit 1
+                    fi
+                '''
+                
+                // Publish npm audit report
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: '.',
+                    reportFiles: 'npm-audit-report.html',
+                    reportName: 'NPM Audit Report'
+                ])
             }
         }
     }
+    post {
+        always {
+            // Archive all reports
+            archiveArtifacts artifacts: 'dependency-check-report/**/*,npm-audit-report.*', allowEmptyArchive: true
+        }
+    }
+}
         
         stage('🐳 Build Docker Image') {
             steps {
